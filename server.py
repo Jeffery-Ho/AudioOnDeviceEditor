@@ -128,8 +128,27 @@ def run_ffmpeg_transcode(
     mp3_quality: int,
     target_bytes: int,
     requested_sample_rate: int = 0,
+    compression_enabled: bool = True,
 ):
     volume = max(0.0, volume_percent / 100.0)
+    if not compression_enabled:
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            in_path,
+            "-vn",
+            "-af",
+            f"volume={volume:.4f}",
+        ]
+        if requested_sample_rate:
+            cmd.extend(["-ar", str(requested_sample_rate)])
+        cmd.extend(["-c:a", "libmp3lame", "-q:a", str(mp3_quality), out_path])
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0 or not os.path.exists(out_path):
+            raise RuntimeError("mp3 导出失败。请确认 ffmpeg 支持 libmp3lame 编码器。")
+        return
+
     # 去除音频末尾静音：反转后去掉开头静音，再反转回来。
     af_chain = (
         f"volume={volume:.4f},"
@@ -229,6 +248,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             mp3_quality = clamp_int(int(params.get("mp3_quality", ["2"])[0]), 0, 9)
         except ValueError:
             mp3_quality = 2
+        compression_enabled = params.get("compression_enabled", ["0"])[0] == "1"
         try:
             target_ratio_percent = clamp_int(int(params.get("target_ratio_percent", ["50"])[0]), 10, 95)
         except ValueError:
@@ -275,6 +295,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     mp3_quality,
                     target_bytes,
                     requested_sample_rate,
+                    compression_enabled,
                 )
                 with open(out_path, "rb") as f:
                     out_data = f.read()

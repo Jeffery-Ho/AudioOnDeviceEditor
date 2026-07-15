@@ -245,7 +245,7 @@
 
         <article class="panel">
           <h2>音频设置</h2>
-          <p class="desc">使用后端 ffmpeg 调节音量、重采样并导出 mp3</p>
+          <p class="desc">默认仅调节音量并保持原采样率，可按需开启压缩或重采样</p>
           <div class="controls">
             <label class="field">
               <span class="label">音量增益 <span class="value" id="volumeValue">100%</span></span>
@@ -258,6 +258,11 @@
             </label>
 
             <label class="field">
+              <span class="label">目标大小压缩 <input id="compressionEnabled" type="checkbox" /></span>
+              <span class="meta">默认关闭；开启后才按目标比例压缩、转为单声道并移除尾部静音。</span>
+            </label>
+
+            <label class="field" id="ratioField">
               <span class="label">目标压缩比例 <span class="value" id="ratioValue">50%</span></span>
               <input id="ratioRange" type="range" min="10" max="95" step="1" value="50" />
             </label>
@@ -265,7 +270,7 @@
             <label class="field">
               <span class="label">输出采样率</span>
               <select id="sampleRateSelect">
-                <option value="0">自动（按压缩参数选择）</option>
+                <option value="0">保持原始采样率</option>
                 <option value="44100">44.1 kHz</option>
               </select>
               <span class="meta">重采样可满足 44.1 kHz 交付规格，但不会恢复原音频已缺失的高频细节。</span>
@@ -295,6 +300,8 @@
       const statusEl = document.getElementById("status");
       const volumeRange = document.getElementById("volumeRange");
       const qualityRange = document.getElementById("qualityRange");
+      const compressionEnabled = document.getElementById("compressionEnabled");
+      const ratioField = document.getElementById("ratioField");
       const ratioRange = document.getElementById("ratioRange");
       const sampleRateSelect = document.getElementById("sampleRateSelect");
       const volumeValue = document.getElementById("volumeValue");
@@ -332,6 +339,19 @@
         return `受采样率限制，未达到${formatBytes(targetBytes)}压缩目标`;
       }
 
+      function formatProcessingSummary(actualBytes) {
+        const parts = [formatBytes(actualBytes)];
+        if (compressionEnabled.checked) {
+          const targetSize = Math.round(sourceFile.size * clampTargetRatio(ratioRange.value) / 100);
+          parts.push(formatTargetResult(actualBytes, targetSize));
+        } else {
+          parts.push("未启用目标大小压缩");
+        }
+        parts.push(`Q${clampMp3Quality(qualityRange.value)}`);
+        parts.push(Number(sampleRateSelect.value) === 44100 ? "44.1 kHz" : "保持原始采样率");
+        return parts.join("，");
+      }
+
       function revokeUrl(url) {
         if (url) URL.revokeObjectURL(url);
       }
@@ -362,6 +382,7 @@
           sourceFile.lastModified,
           clampVolumePercent(volumeRange.value),
           clampMp3Quality(qualityRange.value),
+          compressionEnabled.checked,
           clampTargetRatio(ratioRange.value),
           Number(sampleRateSelect.value) || 0,
           "mp3",
@@ -391,6 +412,7 @@
         const params = new URLSearchParams({
           volume_percent: String(volumePercent),
           mp3_quality: String(mp3Quality),
+          compression_enabled: compressionEnabled.checked ? "1" : "0",
           target_ratio_percent: String(targetRatio),
           sample_rate: String(sampleRate),
           filename: sourceFile.name,
@@ -419,6 +441,8 @@
         volumeValue.textContent = `${clampVolumePercent(volumeRange.value)}%`;
         qualityValue.textContent = `Q${clampMp3Quality(qualityRange.value)}`;
         ratioValue.textContent = `${clampTargetRatio(ratioRange.value)}%`;
+        ratioRange.disabled = !compressionEnabled.checked;
+        ratioField.style.opacity = compressionEnabled.checked ? "1" : "0.5";
       }
 
       function resetProcessed() {
@@ -490,6 +514,10 @@
         updateValueUI();
         markProcessedDirty();
       });
+      compressionEnabled.addEventListener("change", () => {
+        updateValueUI();
+        markProcessedDirty();
+      });
       ratioRange.addEventListener("input", () => {
         updateValueUI();
         markProcessedDirty();
@@ -511,9 +539,7 @@
           processedObjectUrl = URL.createObjectURL(processedBlob);
           processedPlayer.src = processedObjectUrl;
           processedPlayer.play().catch(() => {});
-          const targetSize = sourceFile ? Math.round(sourceFile.size * clampTargetRatio(ratioRange.value) / 100) : 0;
-          const sampleRateText = Number(sampleRateSelect.value) === 44100 ? "，44.1 kHz" : "";
-          setStatus(`试听音频生成完成（${formatBytes(processedBlob.size)}，${formatTargetResult(processedBlob.size, targetSize)}，Q${clampMp3Quality(qualityRange.value)}${sampleRateText}）`);
+          setStatus(`试听音频生成完成（${formatProcessingSummary(processedBlob.size)}）`);
         } catch (err) {
           setStatus(err.message || "生成试听失败");
         } finally {
@@ -548,9 +574,7 @@
           a.click();
           a.remove();
           URL.revokeObjectURL(downloadUrl);
-          const targetSize = sourceFile ? Math.round(sourceFile.size * clampTargetRatio(ratioRange.value) / 100) : 0;
-          const sampleRateText = Number(sampleRateSelect.value) === 44100 ? "，44.1 kHz" : "";
-          setStatus(`导出完成（${formatBytes(processedBlob.size)}，${formatTargetResult(processedBlob.size, targetSize)}，Q${clampMp3Quality(qualityRange.value)}${sampleRateText}）`);
+          setStatus(`导出完成（${formatProcessingSummary(processedBlob.size)}）`);
         } catch (err) {
           setStatus(err.message || "导出失败");
         } finally {
