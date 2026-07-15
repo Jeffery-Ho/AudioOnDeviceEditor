@@ -129,8 +129,33 @@ def run_ffmpeg_transcode(
     target_bytes: int,
     requested_sample_rate: int = 0,
     compression_enabled: bool = True,
+    reference_22_enabled: bool = False,
 ):
     volume = max(0.0, volume_percent / 100.0)
+    if reference_22_enabled:
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            in_path,
+            "-vn",
+            "-af",
+            f"volume={volume:.4f}",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            out_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0 or not os.path.exists(out_path):
+            raise RuntimeError("22规格导出失败。请确认 ffmpeg 支持 libmp3lame 编码器。")
+        return
+
     if not compression_enabled:
         cmd = [
             ffmpeg_bin,
@@ -259,6 +284,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             requested_sample_rate = 0
         if requested_sample_rate not in (0, 44100):
             requested_sample_rate = 0
+        reference_22_enabled = params.get("reference_22_enabled", ["0"])[0] == "1"
 
         filename = params.get("filename", ["input.m4a"])[0]
         in_ext = os.path.splitext(filename)[1].lower() or ".m4a"
@@ -296,6 +322,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     target_bytes,
                     requested_sample_rate,
                     compression_enabled,
+                    reference_22_enabled,
                 )
                 with open(out_path, "rb") as f:
                     out_data = f.read()

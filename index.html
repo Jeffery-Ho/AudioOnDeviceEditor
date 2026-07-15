@@ -248,6 +248,11 @@
           <p class="desc">默认仅调节音量并保持原采样率，可按需开启压缩或重采样</p>
           <div class="controls">
             <label class="field">
+              <span class="label">22规格兼容模式 <input id="reference22Enabled" type="checkbox" /></span>
+              <span class="meta">固定输出为 44.1 kHz、128 kbps CBR、双声道；启用后忽略质量、压缩比例和采样率设置。</span>
+            </label>
+
+            <label class="field">
               <span class="label">音量增益 <span class="value" id="volumeValue">100%</span></span>
               <input id="volumeRange" type="range" min="100" max="400" step="1" value="100" />
             </label>
@@ -300,6 +305,7 @@
       const statusEl = document.getElementById("status");
       const volumeRange = document.getElementById("volumeRange");
       const qualityRange = document.getElementById("qualityRange");
+      const reference22Enabled = document.getElementById("reference22Enabled");
       const compressionEnabled = document.getElementById("compressionEnabled");
       const ratioField = document.getElementById("ratioField");
       const ratioRange = document.getElementById("ratioRange");
@@ -341,6 +347,10 @@
 
       function formatProcessingSummary(actualBytes) {
         const parts = [formatBytes(actualBytes)];
+        if (reference22Enabled.checked) {
+          parts.push("22规格：44.1 kHz，128 kbps CBR，双声道");
+          return parts.join("，");
+        }
         if (compressionEnabled.checked) {
           const targetSize = Math.round(sourceFile.size * clampTargetRatio(ratioRange.value) / 100);
           parts.push(formatTargetResult(actualBytes, targetSize));
@@ -382,6 +392,7 @@
           sourceFile.lastModified,
           clampVolumePercent(volumeRange.value),
           clampMp3Quality(qualityRange.value),
+          reference22Enabled.checked,
           compressionEnabled.checked,
           clampTargetRatio(ratioRange.value),
           Number(sampleRateSelect.value) || 0,
@@ -412,6 +423,7 @@
         const params = new URLSearchParams({
           volume_percent: String(volumePercent),
           mp3_quality: String(mp3Quality),
+          reference_22_enabled: reference22Enabled.checked ? "1" : "0",
           compression_enabled: compressionEnabled.checked ? "1" : "0",
           target_ratio_percent: String(targetRatio),
           sample_rate: String(sampleRate),
@@ -441,8 +453,12 @@
         volumeValue.textContent = `${clampVolumePercent(volumeRange.value)}%`;
         qualityValue.textContent = `Q${clampMp3Quality(qualityRange.value)}`;
         ratioValue.textContent = `${clampTargetRatio(ratioRange.value)}%`;
-        ratioRange.disabled = !compressionEnabled.checked;
-        ratioField.style.opacity = compressionEnabled.checked ? "1" : "0.5";
+        const customSettingsEnabled = !reference22Enabled.checked;
+        qualityRange.disabled = !customSettingsEnabled;
+        compressionEnabled.disabled = !customSettingsEnabled;
+        sampleRateSelect.disabled = !customSettingsEnabled;
+        ratioRange.disabled = !customSettingsEnabled || !compressionEnabled.checked;
+        ratioField.style.opacity = customSettingsEnabled && compressionEnabled.checked ? "1" : "0.5";
       }
 
       function resetProcessed() {
@@ -511,6 +527,10 @@
         markProcessedDirty();
       });
       qualityRange.addEventListener("input", () => {
+        updateValueUI();
+        markProcessedDirty();
+      });
+      reference22Enabled.addEventListener("change", () => {
         updateValueUI();
         markProcessedDirty();
       });
