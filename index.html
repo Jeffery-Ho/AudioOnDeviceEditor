@@ -36,6 +36,10 @@
         padding: 26px;
       }
 
+      body.dialog-open {
+        overflow: hidden;
+      }
+
       .app {
         width: min(1100px, 100%);
         border-radius: 30px;
@@ -203,6 +207,95 @@
         font-size: 13px;
       }
 
+      .landing-dialog {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        background: rgba(22, 29, 44, 0.32);
+        backdrop-filter: blur(12px) saturate(120%);
+      }
+
+      .landing-dialog[hidden] {
+        display: none;
+      }
+
+      .landing-card {
+        width: min(460px, 100%);
+        border: 1px solid rgba(255, 255, 255, 0.88);
+        border-radius: 24px;
+        padding: 28px;
+        background: linear-gradient(155deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 252, 0.94));
+        box-shadow: 0 24px 70px rgba(18, 28, 52, 0.25);
+      }
+
+      .landing-eyebrow {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .landing-card h1 {
+        margin: 10px 0 8px;
+        font-size: clamp(26px, 5vw, 34px);
+        letter-spacing: -0.04em;
+      }
+
+      .landing-copy,
+      .landing-note {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .landing-command {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 22px 0 14px;
+        padding: 12px 12px 12px 16px;
+        border: 1px solid rgba(23, 120, 255, 0.18);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.76);
+      }
+
+      .landing-command code {
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .landing-command button {
+        padding: 8px 11px;
+        font-size: 12px;
+      }
+
+      .landing-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .landing-actions button {
+        width: 100%;
+      }
+
+      .landing-status {
+        min-height: 21px;
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .landing-note {
+        margin: 18px 0 0;
+        font-size: 12px;
+      }
+
       @media (max-width: 900px) {
         body {
           padding: 12px;
@@ -224,6 +317,23 @@
     </style>
   </head>
   <body>
+    <div class="landing-dialog" id="landingDialog" role="dialog" aria-modal="true" aria-labelledby="landingTitle">
+      <section class="landing-card">
+        <div class="landing-eyebrow">Local Audio Service</div>
+        <h1 id="landingTitle">先启动音频服务</h1>
+        <p class="landing-copy">这个页面通过本机 Python 服务调用 FFmpeg。启动服务后，编辑器会自动解锁。</p>
+        <div class="landing-command">
+          <code>m20-audio-start</code>
+          <button class="btn-neutral" id="copyCommandBtn" type="button">复制命令</button>
+        </div>
+        <div class="landing-actions">
+          <button class="btn-primary" id="checkBackendBtn" type="button">重新检测服务</button>
+        </div>
+        <div class="landing-status" id="landingStatus" aria-live="polite">正在检查本机服务...</div>
+        <p class="landing-note">如果终端提示找不到命令，请先执行 <code>source ~/.bashrc</code>，然后重新运行启动命令。</p>
+      </section>
+    </div>
+
     <main class="app">
       <section class="top">
         <article class="panel">
@@ -304,6 +414,10 @@
       const exportBtn = document.getElementById("exportBtn");
       const statusEl = document.getElementById("status");
       const backendStatusEl = document.getElementById("backendStatus");
+      const landingDialog = document.getElementById("landingDialog");
+      const landingStatus = document.getElementById("landingStatus");
+      const checkBackendBtn = document.getElementById("checkBackendBtn");
+      const copyCommandBtn = document.getElementById("copyCommandBtn");
       const volumeRange = document.getElementById("volumeRange");
       const qualityRange = document.getElementById("qualityRange");
       const reference22Enabled = document.getElementById("reference22Enabled");
@@ -327,6 +441,11 @@
 
       function setStatus(text) {
         statusEl.textContent = text;
+      }
+
+      function setBackendReady(isReady) {
+        landingDialog.hidden = isReady;
+        document.body.classList.toggle("dialog-open", !isReady);
       }
 
       async function fetchWithTimeout(url, options, timeoutMs) {
@@ -464,6 +583,9 @@
       }
 
       async function checkLocalBackend() {
+        checkBackendBtn.disabled = true;
+        setBackendReady(false);
+        landingStatus.textContent = "正在检查本机服务...";
         backendStatusEl.textContent = "正在检查本机服务...";
         try {
           const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/health`, {}, 3000);
@@ -472,9 +594,16 @@
           if (payload.status !== "ok") throw new Error("backend is not ready");
           backendStatusEl.textContent = "本机服务已连接，可进行试听和导出";
           backendStatusEl.style.color = "#2f8f5b";
+          landingStatus.textContent = "服务已连接，编辑器马上可用。";
+          landingStatus.style.color = "#2f8f5b";
+          setBackendReady(true);
         } catch (err) {
           backendStatusEl.textContent = "本机服务未启动，请执行 m20-audio-start 后刷新页面";
           backendStatusEl.style.color = "#a45b37";
+          landingStatus.textContent = "尚未连接，请先在终端执行上面的启动命令。";
+          landingStatus.style.color = "#a45b37";
+        } finally {
+          checkBackendBtn.disabled = false;
         }
       }
 
@@ -572,6 +701,16 @@
         markProcessedDirty();
       });
       sampleRateSelect.addEventListener("change", markProcessedDirty);
+
+      checkBackendBtn.addEventListener("click", checkLocalBackend);
+      copyCommandBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText("m20-audio-start");
+          landingStatus.textContent = "命令已复制，请粘贴到终端执行。";
+        } catch (err) {
+          landingStatus.textContent = "复制失败，请手动输入 m20-audio-start。";
+        }
+      });
 
       previewBtn.addEventListener("click", async () => {
         if (!sourceFile) {
