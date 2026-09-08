@@ -289,12 +289,11 @@
       </section>
 
       <section class="footer">
-        <div class="hint">导出前请用 <code>python3 server.py</code> 启动本机服务；GitHub Pages 页面也会连接到 <code>127.0.0.1:8000</code>。</div>
+        <div class="hint" id="backendStatus">正在检查本机服务...</div>
         <button class="btn-primary" id="exportBtn" type="button">导出 MP3</button>
       </section>
     </main>
 
-    <script src="backend-config.js"></script>
     <script>
       const audioInput = document.getElementById("audioInput");
       const clearBtn = document.getElementById("clearBtn");
@@ -304,6 +303,7 @@
       const previewBtn = document.getElementById("previewBtn");
       const exportBtn = document.getElementById("exportBtn");
       const statusEl = document.getElementById("status");
+      const backendStatusEl = document.getElementById("backendStatus");
       const volumeRange = document.getElementById("volumeRange");
       const qualityRange = document.getElementById("qualityRange");
       const reference22Enabled = document.getElementById("reference22Enabled");
@@ -322,16 +322,11 @@
       let processedBlob = null;
       let processedObjectUrl = null;
       let processedSettingsKey = "";
-      const publicBackendBaseUrl = window.AUDIO_EDITOR_PUBLIC_BACKEND_URL || "";
       const localBackendBaseUrl = "http://127.0.0.1:8000";
+      const backendTimeoutMs = 120000;
 
       function setStatus(text) {
         statusEl.textContent = text;
-      }
-
-      function backendBaseUrls() {
-        const sameOrigin = location.hostname !== "jeffery-ho.github.io" ? "" : null;
-        return [...new Set([publicBackendBaseUrl, sameOrigin, localBackendBaseUrl].filter((url) => url !== null))];
       }
 
       async function fetchWithTimeout(url, options, timeoutMs) {
@@ -448,27 +443,39 @@
           filename: sourceFile.name,
         });
 
-        let lastError = null;
-        for (const backendBaseUrl of backendBaseUrls()) {
-          try {
-            const timeoutMs = publicBackendBaseUrl && backendBaseUrl === publicBackendBaseUrl ? 120000 : 15000;
-            const response = await fetchWithTimeout(`${backendBaseUrl}/api/transcode?${params.toString()}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/octet-stream" },
-              body: sourceFile,
-            }, timeoutMs);
-            if (!response.ok) {
-              const msg = await response.text();
-              lastError = new Error(msg || "后端转码失败");
-              continue;
-            }
-            const blob = await response.blob();
-            return { blob, ext: "mp3" };
-          } catch (err) {
-            lastError = err;
+        try {
+          const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/transcode?${params.toString()}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: sourceFile,
+          }, backendTimeoutMs);
+          if (!response.ok) {
+            const msg = await response.text();
+            throw new Error(msg || "本机后端转码失败");
           }
+          const blob = await response.blob();
+          return { blob, ext: "mp3" };
+        } catch (err) {
+          if (err.name === "AbortError") {
+            throw new Error("本机后端转码超时，请检查 /tmp/m20_audio_server.log");
+          }
+          throw new Error(err.message || "无法连接本机后端，请执行 m20-audio-start");
         }
-        throw new Error(lastError?.message || "无法连接公网或本机后端服务");
+      }
+
+      async function checkLocalBackend() {
+        backendStatusEl.textContent = "正在检查本机服务...";
+        try {
+          const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/health`, {}, 3000);
+          if (!response.ok) throw new Error("health check failed");
+          const payload = await response.json();
+          if (payload.status !== "ok") throw new Error("backend is not ready");
+          backendStatusEl.textContent = "本机服务已连接，可进行试听和导出";
+          backendStatusEl.style.color = "#2f8f5b";
+        } catch (err) {
+          backendStatusEl.textContent = "本机服务未启动，请执行 m20-audio-start 后刷新页面";
+          backendStatusEl.style.color = "#a45b37";
+        }
       }
 
       function updateValueUI() {
@@ -625,6 +632,7 @@
       });
 
       updateValueUI();
+      checkLocalBackend();
     </script>
   </body>
 </html>
