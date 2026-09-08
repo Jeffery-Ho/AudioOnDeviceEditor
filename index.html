@@ -319,18 +319,18 @@
   <body>
     <div class="landing-dialog" id="landingDialog" role="dialog" aria-modal="true" aria-labelledby="landingTitle">
       <section class="landing-card">
-        <div class="landing-eyebrow">Local Audio Service</div>
-        <h1 id="landingTitle">先启动音频服务</h1>
-        <p class="landing-copy">这个页面通过本机 Python 服务调用 FFmpeg。启动服务后，编辑器会自动解锁。</p>
+        <div class="landing-eyebrow">Render Audio Service</div>
+        <h1 id="landingTitle">正在连接公网服务</h1>
+        <p class="landing-copy">这个页面通过 Render 上的 Python/FFmpeg 服务处理音频。连接成功后，编辑器会自动解锁。</p>
         <div class="landing-command">
-          <code>m20-audio-start</code>
-          <button class="btn-neutral" id="copyCommandBtn" type="button">复制命令</button>
+          <code>audioondeviceeditor.onrender.com</code>
+          <span class="meta">HTTPS 后端</span>
         </div>
         <div class="landing-actions">
           <button class="btn-primary" id="checkBackendBtn" type="button">重新检测服务</button>
         </div>
-        <div class="landing-status" id="landingStatus" aria-live="polite">正在检查本机服务...</div>
-        <p class="landing-note">如果终端提示找不到命令，请先执行 <code>source ~/.bashrc</code>，然后重新运行启动命令。</p>
+        <div class="landing-status" id="landingStatus" aria-live="polite">正在连接 Render 服务...</div>
+        <p class="landing-note">免费实例休眠后，首次连接可能需要等待一段时间。请等待后点击“重新检测服务”。</p>
       </section>
     </div>
 
@@ -399,7 +399,7 @@
       </section>
 
       <section class="footer">
-        <div class="hint" id="backendStatus">正在检查本机服务...</div>
+        <div class="hint" id="backendStatus">正在连接 Render 公网服务...</div>
         <button class="btn-primary" id="exportBtn" type="button">导出 MP3</button>
       </section>
     </main>
@@ -417,7 +417,6 @@
       const landingDialog = document.getElementById("landingDialog");
       const landingStatus = document.getElementById("landingStatus");
       const checkBackendBtn = document.getElementById("checkBackendBtn");
-      const copyCommandBtn = document.getElementById("copyCommandBtn");
       const volumeRange = document.getElementById("volumeRange");
       const qualityRange = document.getElementById("qualityRange");
       const reference22Enabled = document.getElementById("reference22Enabled");
@@ -436,8 +435,9 @@
       let processedBlob = null;
       let processedObjectUrl = null;
       let processedSettingsKey = "";
-      const localBackendBaseUrl = "http://127.0.0.1:8000";
+      const publicBackendBaseUrl = "https://audioondeviceeditor.onrender.com";
       const backendTimeoutMs = 120000;
+      const backendHealthTimeoutMs = 90000;
 
       function setStatus(text) {
         statusEl.textContent = text;
@@ -459,17 +459,17 @@
       }
 
       async function requestBackendHealth() {
-        const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/health`, {}, 5000);
-        if (!response.ok) throw new Error("本机服务未就绪");
+        const response = await fetchWithTimeout(`${publicBackendBaseUrl}/api/health`, {}, backendHealthTimeoutMs);
+        if (!response.ok) throw new Error("Render 服务未就绪");
         const payload = await response.json();
-        if (payload.status !== "ok") throw new Error("本机服务未就绪");
+        if (payload.status !== "ok") throw new Error("Render 服务未就绪");
         return payload;
       }
 
       function showBackendUnavailable() {
-        backendStatusEl.textContent = "本机服务未启动，请执行 m20-audio-start 后重新检测";
+        backendStatusEl.textContent = "Render 公网服务暂时未响应，请稍后重新检测";
         backendStatusEl.style.color = "#a45b37";
-        landingStatus.textContent = "尚未连接，请先在终端执行上面的启动命令。";
+        landingStatus.textContent = "公网服务可能正在冷启动，请稍候后重新检测。";
         landingStatus.style.color = "#a45b37";
         setBackendReady(false);
       }
@@ -582,43 +582,43 @@
           await requestBackendHealth();
         } catch (err) {
           showBackendUnavailable();
-          throw new Error("无法连接本机后端，请先执行 m20-audio-start，然后点击“重新检测服务”。");
+          throw new Error("无法连接 Render 公网后端，请稍候后点击“重新检测服务”。");
         }
 
         try {
-          const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/transcode?${params.toString()}`, {
+          const response = await fetchWithTimeout(`${publicBackendBaseUrl}/api/transcode?${params.toString()}`, {
             method: "POST",
             headers: { "Content-Type": "application/octet-stream" },
             body: sourceFile,
           }, backendTimeoutMs);
           if (!response.ok) {
             const msg = await response.text();
-            throw new Error(msg || "本机后端转码失败");
+            throw new Error(msg || "Render 公网后端转码失败");
           }
           const blob = await response.blob();
           return { blob, ext: "mp3" };
         } catch (err) {
           if (err.name === "AbortError") {
-            throw new Error("本机后端转码超时，请检查 /tmp/m20_audio_server.log");
+            throw new Error("Render 公网后端转码超时，请稍后重试");
           }
           if (err instanceof TypeError) {
             showBackendUnavailable();
-            throw new Error("无法连接本机后端，请执行 m20-audio-start");
+            throw new Error("无法连接 Render 公网后端，请稍候后重新检测");
           }
-          throw new Error(err.message || "无法连接本机后端，请执行 m20-audio-start");
+          throw new Error(err.message || "无法连接 Render 公网后端，请稍候后重新检测");
         }
       }
 
-      async function checkLocalBackend() {
+      async function checkBackend() {
         checkBackendBtn.disabled = true;
         setBackendReady(false);
-        landingStatus.textContent = "正在检查本机服务...";
-        backendStatusEl.textContent = "正在检查本机服务...";
+        landingStatus.textContent = "正在连接 Render 服务...";
+        backendStatusEl.textContent = "正在连接 Render 公网服务...";
         try {
           await requestBackendHealth();
-          backendStatusEl.textContent = "本机服务已连接，可进行试听和导出";
+          backendStatusEl.textContent = "Render 公网服务已连接，可进行试听和导出";
           backendStatusEl.style.color = "#2f8f5b";
-          landingStatus.textContent = "服务已连接，编辑器马上可用。";
+          landingStatus.textContent = "公网服务已连接，编辑器马上可用。";
           landingStatus.style.color = "#2f8f5b";
           setBackendReady(true);
         } catch (err) {
@@ -723,15 +723,7 @@
       });
       sampleRateSelect.addEventListener("change", markProcessedDirty);
 
-      checkBackendBtn.addEventListener("click", checkLocalBackend);
-      copyCommandBtn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText("m20-audio-start");
-          landingStatus.textContent = "命令已复制，请粘贴到终端执行。";
-        } catch (err) {
-          landingStatus.textContent = "复制失败，请手动输入 m20-audio-start。";
-        }
-      });
+      checkBackendBtn.addEventListener("click", checkBackend);
 
       previewBtn.addEventListener("click", async () => {
         if (!sourceFile) {
@@ -792,7 +784,7 @@
       });
 
       updateValueUI();
-      checkLocalBackend();
+      checkBackend();
     </script>
   </body>
 </html>
