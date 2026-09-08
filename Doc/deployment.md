@@ -6,11 +6,25 @@
 
 https://jeffery-ho.github.io/AudioOnDeviceEditor/
 
-GitHub Pages 只提供静态页面，音频转码始终由当前电脑上的 Python 服务完成。
+GitHub Pages 提供静态页面，音频转码由 Render 上的 Python/FFmpeg 公网服务完成。
 
-如果不希望依赖本机端口，可以将 `server.py` 部署为 Render Docker Web Service。Render 服务应监听环境变量 `PORT`，并设置 `HOST=0.0.0.0`；仓库根目录的 `Dockerfile` 已负责安装 FFmpeg。
+Render 服务地址：
 
-## 本机后端
+```text
+https://audioondeviceeditor.onrender.com
+```
+
+健康检查地址：
+
+```text
+https://audioondeviceeditor.onrender.com/api/health
+```
+
+Render Docker Web Service 监听环境变量 `PORT`，并设置 `HOST=0.0.0.0`；仓库根目录的 `Dockerfile` 负责安装 FFmpeg。免费实例休眠后，页面首次请求可能需要等待冷启动。
+
+后端使用临时目录处理单次上传，不保存用户音频。
+
+## 本机后端（可选，本地开发）
 
 ### 推荐启动方式
 
@@ -26,7 +40,7 @@ m20-audio-start
 http://127.0.0.1:8000
 ```
 
-然后打开 GitHub Pages 页面。页面加载时会请求 `/api/health`；如果服务未启动，页面会先显示启动引导弹窗，连接成功后自动解锁编辑器。每次试听或导出前页面也会再次检查健康接口；服务中途退出时，会立即重新显示启动引导，而不是一直停留在处理中。
+本机服务只用于本地开发和故障排查，当前 GitHub Pages 页面默认不会请求它。Render 公网服务连接成功后，页面会自动解锁；服务中途休眠或暂时不可用时，会显示冷启动提示并允许重新检测。
 
 ### 其他快捷命令
 
@@ -57,4 +71,4 @@ source ~/.bashrc
 http://127.0.0.1:8000/api/health
 ```
 
-浏览器不能从 GitHub Pages 页面直接启动本机进程。如果页面提示服务未启动，请先执行 `m20-audio-start`，再刷新页面。
+浏览器不能从 GitHub Pages 页面直接启动本机进程。正式使用不需要启动本机服务；只有本地开发时才执行 `m20-audio-start`。
