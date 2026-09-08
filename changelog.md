@@ -4,6 +4,8 @@
 
 - GitHub Pages 页面支持连接本机 `127.0.0.1:8000` 后端完成转码。
 - Python 服务增加 GitHub Pages 跨域预检和响应头处理。
+- 增加 Hugging Face Docker Space 部署配置，并支持公网后端优先、本机后端回退。
+- 增加 100 MB 默认上传大小限制。
 
 ## 2026-07-15
 

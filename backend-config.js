@@ -1,0 +1,1 @@
+window.AUDIO_EDITOR_PUBLIC_BACKEND_URL = "";

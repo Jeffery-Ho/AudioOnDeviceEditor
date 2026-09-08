@@ -1,2 +1,9 @@
+---
+title: AudioOnDeviceEditor
+sdk: docker
+app_port: 7860
+---
+
 # AudioOnDeviceEditor
-for personal edit audio which on devices.
+
+Personal audio editing tool with a Dockerized Python and FFmpeg backend.

@@ -294,6 +294,7 @@
       </section>
     </main>
 
+    <script src="backend-config.js"></script>
     <script>
       const audioInput = document.getElementById("audioInput");
       const clearBtn = document.getElementById("clearBtn");
@@ -321,10 +322,26 @@
       let processedBlob = null;
       let processedObjectUrl = null;
       let processedSettingsKey = "";
-      const backendBaseUrl = location.hostname === "jeffery-ho.github.io" ? "http://127.0.0.1:8000" : "";
+      const publicBackendBaseUrl = window.AUDIO_EDITOR_PUBLIC_BACKEND_URL || "";
+      const localBackendBaseUrl = "http://127.0.0.1:8000";
 
       function setStatus(text) {
         statusEl.textContent = text;
+      }
+
+      function backendBaseUrls() {
+        const sameOrigin = location.hostname !== "jeffery-ho.github.io" ? "" : null;
+        return [...new Set([publicBackendBaseUrl, sameOrigin, localBackendBaseUrl].filter((url) => url !== null))];
+      }
+
+      async function fetchWithTimeout(url, options, timeoutMs) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
       function formatBytes(bytes) {
@@ -431,23 +448,27 @@
           filename: sourceFile.name,
         });
 
-        let response;
-        try {
-          response = await fetch(`${backendBaseUrl}/api/transcode?${params.toString()}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/octet-stream" },
-            body: sourceFile,
-          });
-        } catch (err) {
-          throw new Error("无法连接本机后端服务。请先运行 python3 server.py，并确认 http://127.0.0.1:8000 正在运行");
+        let lastError = null;
+        for (const backendBaseUrl of backendBaseUrls()) {
+          try {
+            const timeoutMs = publicBackendBaseUrl && backendBaseUrl === publicBackendBaseUrl ? 120000 : 15000;
+            const response = await fetchWithTimeout(`${backendBaseUrl}/api/transcode?${params.toString()}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/octet-stream" },
+              body: sourceFile,
+            }, timeoutMs);
+            if (!response.ok) {
+              const msg = await response.text();
+              lastError = new Error(msg || "后端转码失败");
+              continue;
+            }
+            const blob = await response.blob();
+            return { blob, ext: "mp3" };
+          } catch (err) {
+            lastError = err;
+          }
         }
-
-        if (!response.ok) {
-          const msg = await response.text();
-          throw new Error(msg || "后端转码失败");
-        }
-        const blob = await response.blob();
-        return { blob, ext: "mp3" };
+        throw new Error(lastError?.message || "无法连接公网或本机后端服务");
       }
 
       function updateValueUI() {

@@ -1,0 +1,20 @@
+services:
+  audio-editor:
+    build: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      MAX_UPLOAD_BYTES: 104857600
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
