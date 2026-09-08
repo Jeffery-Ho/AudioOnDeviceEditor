@@ -248,7 +248,7 @@
           <p class="desc">默认仅调节音量并保持原采样率，可按需开启压缩或重采样</p>
           <div class="controls">
             <label class="field">
-              <span class="label">22规格兼容模式 <input id="reference22Enabled" type="checkbox" /></span>
+              <span class="label">高规格模式 <input id="reference22Enabled" type="checkbox" /></span>
               <span class="meta">固定输出为 44.1 kHz、128 kbps CBR、双声道；启用后忽略质量、压缩比例和采样率设置。</span>
             </label>
 
@@ -348,7 +348,7 @@
       function formatProcessingSummary(actualBytes) {
         const parts = [formatBytes(actualBytes)];
         if (reference22Enabled.checked) {
-          parts.push("22规格：44.1 kHz，128 kbps CBR，双声道");
+          parts.push("高规格：44.1 kHz，128 kbps CBR，双声道");
           return parts.join("，");
         }
         if (compressionEnabled.checked) {

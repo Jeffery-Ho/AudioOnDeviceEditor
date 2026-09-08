@@ -1,0 +1,20 @@
+# macOS and Python runtime files
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local audio assets and bundled executables
+*.mp3
+*.MP3
+audio/
+processed/
+M10_audio/
+FFMPEG_BIN/
+bg/
+de/
+en/
+es/
+fr/
+it/
+pl/
+pl(new)/

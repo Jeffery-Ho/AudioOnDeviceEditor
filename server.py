@@ -153,7 +153,7 @@ def run_ffmpeg_transcode(
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0 or not os.path.exists(out_path):
-            raise RuntimeError("22规格导出失败。请确认 ffmpeg 支持 libmp3lame 编码器。")
+            raise RuntimeError("高规格模式导出失败。请确认 ffmpeg 支持 libmp3lame 编码器。")
         return
 
     if not compression_enabled:
