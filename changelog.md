@@ -4,6 +4,7 @@
 
 - 部署方案收敛为 GitHub Pages 前端加本机 Python/FFmpeg 后端。
 - 页面加载时增加本机 `/api/health` 检查，并在服务未启动时显示明确提示。
+- 增加启动引导弹窗，要求本机服务连接成功后再开始编辑。
 - 改进 `m20-audio-start`、`m20-audio-stop` 和 `m20-audio-toggle` 的重复启动与停止行为。
 - 清理不再使用的 Docker、Hugging Face 和公网后端配置。
 - GitHub Pages 页面支持连接本机 `127.0.0.1:8000` 后端完成转码。
