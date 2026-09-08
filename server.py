@@ -8,8 +8,10 @@ import subprocess
 import tempfile
 from urllib.parse import parse_qs, urlparse
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
+PAGES_ORIGIN = "https://jeffery-ho.github.io"
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(100 * 1024 * 1024)))
 BITRATE_LADDER = [320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32, 24, 16]
 
 
@@ -253,15 +255,48 @@ def run_ffmpeg_transcode(
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def cors_origin(self):
+        origin = self.headers.get("Origin", "")
+        allowed_origins = {PAGES_ORIGIN, "http://127.0.0.1:8000", "http://localhost:8000"}
+        return origin if origin in allowed_origins else ""
+
+    def add_cors_headers(self):
+        origin = self.cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/transcode":
+            self.send_error(404, "Not Found")
+            return
+        self.send_response(204)
+        self.add_cors_headers()
+        self.end_headers()
+
     def do_POST(self):
         parsed = urlparse(self.path)
         if parsed.path != "/api/transcode":
             self.send_error(404, "Not Found")
             return
 
-        length = int(self.headers.get("Content-Length", "0") or "0")
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            self.send_error(400, "Invalid Content-Length")
+            return
         if length <= 0:
             self.send_error(400, "Empty body")
+            return
+        if length > MAX_UPLOAD_BYTES:
+            self.send_response(413, "Payload Too Large")
+            self.add_cors_headers()
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
             return
 
         params = parse_qs(parsed.query)
@@ -300,6 +335,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as exc:
             payload = str(exc).encode("utf-8", errors="replace")
             self.send_response(500)
+            self.add_cors_headers()
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -329,6 +365,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 payload = str(exc).encode("utf-8", errors="replace")
                 self.send_response(500)
+                self.add_cors_headers()
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -336,6 +373,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
 
         self.send_response(200)
+        self.add_cors_headers()
         self.send_header("Content-Type", "audio/mpeg")
         self.send_header("Content-Length", str(len(out_data)))
         self.end_headers()
