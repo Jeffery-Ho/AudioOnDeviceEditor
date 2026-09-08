@@ -289,7 +289,7 @@
       </section>
 
       <section class="footer">
-        <div class="hint">导出前请用 <code>python3 server.py</code> 启动服务，并通过 <code>http://127.0.0.1:8000</code> 访问页面。</div>
+        <div class="hint">导出前请用 <code>python3 server.py</code> 启动本机服务；GitHub Pages 页面也会连接到 <code>127.0.0.1:8000</code>。</div>
         <button class="btn-primary" id="exportBtn" type="button">导出 MP3</button>
       </section>
     </main>
@@ -321,6 +321,7 @@
       let processedBlob = null;
       let processedObjectUrl = null;
       let processedSettingsKey = "";
+      const backendBaseUrl = location.hostname === "jeffery-ho.github.io" ? "http://127.0.0.1:8000" : "";
 
       function setStatus(text) {
         statusEl.textContent = text;
@@ -432,13 +433,13 @@
 
         let response;
         try {
-          response = await fetch(`/api/transcode?${params.toString()}`, {
+          response = await fetch(`${backendBaseUrl}/api/transcode?${params.toString()}`, {
             method: "POST",
             headers: { "Content-Type": "application/octet-stream" },
             body: sourceFile,
           });
         } catch (err) {
-          throw new Error("无法连接后端服务。请先运行 python3 server.py，并通过 http://127.0.0.1:8000 打开页面");
+          throw new Error("无法连接本机后端服务。请先运行 python3 server.py，并确认 http://127.0.0.1:8000 正在运行");
         }
 
         if (!response.ok) {
