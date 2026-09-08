@@ -458,6 +458,22 @@
         }
       }
 
+      async function requestBackendHealth() {
+        const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/health`, {}, 5000);
+        if (!response.ok) throw new Error("本机服务未就绪");
+        const payload = await response.json();
+        if (payload.status !== "ok") throw new Error("本机服务未就绪");
+        return payload;
+      }
+
+      function showBackendUnavailable() {
+        backendStatusEl.textContent = "本机服务未启动，请执行 m20-audio-start 后重新检测";
+        backendStatusEl.style.color = "#a45b37";
+        landingStatus.textContent = "尚未连接，请先在终端执行上面的启动命令。";
+        landingStatus.style.color = "#a45b37";
+        setBackendReady(false);
+      }
+
       function formatBytes(bytes) {
         if (!Number.isFinite(bytes)) return "-";
         const units = ["B", "KB", "MB", "GB"];
@@ -563,6 +579,13 @@
         });
 
         try {
+          await requestBackendHealth();
+        } catch (err) {
+          showBackendUnavailable();
+          throw new Error("无法连接本机后端，请先执行 m20-audio-start，然后点击“重新检测服务”。");
+        }
+
+        try {
           const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/transcode?${params.toString()}`, {
             method: "POST",
             headers: { "Content-Type": "application/octet-stream" },
@@ -578,6 +601,10 @@
           if (err.name === "AbortError") {
             throw new Error("本机后端转码超时，请检查 /tmp/m20_audio_server.log");
           }
+          if (err instanceof TypeError) {
+            showBackendUnavailable();
+            throw new Error("无法连接本机后端，请执行 m20-audio-start");
+          }
           throw new Error(err.message || "无法连接本机后端，请执行 m20-audio-start");
         }
       }
@@ -588,20 +615,14 @@
         landingStatus.textContent = "正在检查本机服务...";
         backendStatusEl.textContent = "正在检查本机服务...";
         try {
-          const response = await fetchWithTimeout(`${localBackendBaseUrl}/api/health`, {}, 3000);
-          if (!response.ok) throw new Error("health check failed");
-          const payload = await response.json();
-          if (payload.status !== "ok") throw new Error("backend is not ready");
+          await requestBackendHealth();
           backendStatusEl.textContent = "本机服务已连接，可进行试听和导出";
           backendStatusEl.style.color = "#2f8f5b";
           landingStatus.textContent = "服务已连接，编辑器马上可用。";
           landingStatus.style.color = "#2f8f5b";
           setBackendReady(true);
         } catch (err) {
-          backendStatusEl.textContent = "本机服务未启动，请执行 m20-audio-start 后刷新页面";
-          backendStatusEl.style.color = "#a45b37";
-          landingStatus.textContent = "尚未连接，请先在终端执行上面的启动命令。";
-          landingStatus.style.color = "#a45b37";
+          showBackendUnavailable();
         } finally {
           checkBackendBtn.disabled = false;
         }
