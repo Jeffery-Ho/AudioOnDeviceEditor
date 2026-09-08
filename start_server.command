@@ -31,8 +31,9 @@ else
     echo "端口 8000 已被其他进程占用，请先处理该进程。"
     exit 1
   fi
-  nohup env HOST=127.0.0.1 PORT=8000 FFMPEG_BIN="$(command -v ffmpeg)" python3 server.py >"$LOG_FILE" 2>&1 &
+  nohup env HOST=127.0.0.1 PORT=8000 FFMPEG_BIN="$(command -v ffmpeg)" python3 server.py >"$LOG_FILE" 2>&1 </dev/null &
   server_pid=$!
+  disown "$server_pid" 2>/dev/null || true
   printf '%s\n' "$server_pid" >"$PID_FILE"
   for _ in 1 2 3 4 5; do
     if curl -fsS --max-time 1 http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
