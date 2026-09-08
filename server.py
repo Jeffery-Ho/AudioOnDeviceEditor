@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import glob
 import http.server
+import json
 import os
 import re
 import shutil
@@ -265,8 +266,34 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/health":
+            super().do_GET()
+            return
+
+        try:
+            ffmpeg_bin = resolve_ffmpeg_binary()
+            payload = {
+                "status": "ok",
+                "service": "m20-audio",
+                "ffmpeg": os.path.basename(ffmpeg_bin),
+            }
+            status_code = 200
+        except Exception as exc:
+            payload = {"status": "error", "service": "m20-audio", "error": str(exc)}
+            status_code = 503
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status_code)
+        self.add_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         parsed = urlparse(self.path)
