@@ -8,6 +8,8 @@ https://jeffery-ho.github.io/AudioOnDeviceEditor/
 
 GitHub Pages 只提供静态页面，音频转码始终由当前电脑上的 Python 服务完成。
 
+如果不希望依赖本机端口，可以将 `server.py` 部署为 Render Docker Web Service。Render 服务应监听环境变量 `PORT`，并设置 `HOST=0.0.0.0`；仓库根目录的 `Dockerfile` 已负责安装 FFmpeg。
+
 ## 本机后端
 
 ### 推荐启动方式
