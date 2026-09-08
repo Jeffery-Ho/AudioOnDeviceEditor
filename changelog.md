@@ -7,6 +7,7 @@
 - 增加启动引导弹窗，要求本机服务连接成功后再开始编辑。
 - 增加试听和导出前的健康检查，后端中途退出时立即提示重新启动。
 - 增加 Render Docker Web Service 部署文件，支持使用公网 Python/FFmpeg 后端。
+- 前端切换到 `audioondeviceeditor.onrender.com` 公网后端，不再依赖本机 8000 端口。
 - 改进 `m20-audio-start`、`m20-audio-stop` 和 `m20-audio-toggle` 的重复启动与停止行为。
 - 清理不再使用的 Docker、Hugging Face 和公网后端配置。
 - GitHub Pages 页面支持连接本机 `127.0.0.1:8000` 后端完成转码。
