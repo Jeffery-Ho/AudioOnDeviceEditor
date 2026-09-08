@@ -1,11 +1,39 @@
+import http.server
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import unittest
+from urllib.request import Request, urlopen
 
-from server import run_ffmpeg_transcode
+from server import Handler, PAGES_ORIGIN, run_ffmpeg_transcode
+
+
+class HealthEndpointTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.url = f"http://127.0.0.1:{cls.httpd.server_port}/api/health"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls.thread.join(timeout=2)
+
+    def test_health_endpoint_allows_pages_origin(self):
+        request = Request(self.url, headers={"Origin": PAGES_ORIGIN})
+        with urlopen(request, timeout=5) as response:
+            payload = json.load(response)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers["Access-Control-Allow-Origin"], PAGES_ORIGIN)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["service"], "m20-audio")
+            self.assertTrue(payload["ffmpeg"])
 
 
 class Reference22TranscodeTests(unittest.TestCase):
